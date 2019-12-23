@@ -83,6 +83,11 @@ var config bool GrenadeRespectUniqueRule;
 var config bool AmmoSlotBypassUniqueRule;
 // End Issue #171
 
+// Start Issue #706
+// Ignore adjacency requirement for Staffing Ghost Gremlins
+var config bool GremlinsAnywhere;
+// End Issue #706
+
 // Start Issue #219
 // Object names of head contents that don't allow Hair/Props/Helmets/Beards
 var config(Content) array<name> HeadSuppressesHair;
@@ -434,3 +439,85 @@ static function array<name> GetAmbushRiskTemplateNames()
 	return TemplateNames;
 }
 // End Issue #485
+
+// Start Issue #706
+static function array<XComGameState_StaffSlot> GetAllStaffSlots(optional bool FilledOnly = false)
+{
+	local XComGameStateHistory History;
+	local XComGameState_HeadquartersXCom XComHQ;
+	local XComGameState_FacilityXCom Facility;
+	local StateObjectReference FacilityRef;
+	local XComGameState_StaffSlot StaffSlot;
+	local array<XComGameState_StaffSlot> StaffSlots;
+	local int i;
+
+	History = `XCOMHISTORY;
+	XComHQ = `XCOMHQ;
+
+	foreach XComHQ.Facilities(FacilityRef)
+	{
+		Facility = XComGameState_FacilityXCom(History.GetGameStateForObjectID(FacilityRef.ObjectID));
+
+		for (i = 0; i < Facility.StaffSlots.Length; i++)
+		{
+			StaffSlot = Facility.GetStaffSlot(i);
+
+			if (FilledOnly)
+			{
+				if (Staffslot.IsSlotFilled())
+				{
+					StaffSlots.AddItem(StaffSlot);
+				}
+			}
+			else
+			{
+				StaffSlots.AddItem(StaffSlot);
+			}
+		}
+	}
+
+	return StaffSlots;
+}
+
+static function array<XComGameState_StaffSlot> GetAllGhosts()
+{
+	local XComGameStateHistory History;
+	local XComGameState_StaffSlot StaffSlot;
+	local array<XComGameState_StaffSlot> GhostCreators, ActiveGhosts;
+    local StateObjectReference GhostRef;
+
+	History = `XCOMHISTORY;
+
+	foreach GetAllGhostCreators()(GhostCreator)
+	{
+		foreach GhostCreator.Ghosts(GhostRef)
+		{
+			StaffSlot = XComGameState_StaffSlot(History.GetGameStateForObjectID(GhostRef.ObjectID));
+
+			if (StaffSlot != none)
+			{
+				ActiveGhosts.AddItem(StaffSlot);
+			}
+		}
+	}
+
+	return ActiveGhosts;
+}
+
+static function array<XComGameState_StaffSlot> GetAllGhostCreators()
+{
+	local XComGameState_StaffSlot StaffSlot;
+	local array<XComGameState_StaffSlot> GhostCreators;
+
+	// We only care about filled StaffSlots as empty slots do not produce ghosts by themselves
+	foreach GetAllStaffSlots(true)(StaffSlot)
+	{
+		if (StaffSlot.IsCreator())
+		{
+			GhostCreators.AddItem(StaffSlot);
+		}
+	}
+
+	return GhostCreators;
+}
+// End Issue #706

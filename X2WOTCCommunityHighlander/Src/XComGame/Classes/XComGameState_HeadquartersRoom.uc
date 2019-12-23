@@ -246,12 +246,9 @@ function array<XComGameState_StaffSlot> GetAdjacentGhostCreatingStaffSlots()
 	local array<XComGameState_StaffSlot> AdjacentCreatorStaffSlots;
 	local XComGameState_StaffSlot StaffSlot;
 
-	`XEVENTMGR.TriggerEvent('GetAdjacentGhostCreatingStaffSlots', AdjacentCreatorStaffSlots, self);
-
-	// If changes has been made by an EventListener return those changes instead of default behavior
-	if (AdjacentCreatorStaffSlots.Length > 0)
+	if (class'CHHelpers'.default.GremlinsAnywhere)
 	{
-		return AdjacentCreatorStaffSlots;
+		return class'CHHelpers'.static.GetAllGhostCreators();
 	}
 
 	foreach GetAdjacentStaffSlots()(StaffSlot)
