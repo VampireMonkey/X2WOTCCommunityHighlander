@@ -482,13 +482,14 @@ static function array<XComGameState_StaffSlot> GetAllStaffSlots(optional bool Fi
 static function array<XComGameState_StaffSlot> GetAllGhosts()
 {
 	local XComGameStateHistory History;
-	local XComGameState_StaffSlot StaffSlot;
+	local XComGameState_StaffSlot StaffSlot, GhostCreator;
 	local array<XComGameState_StaffSlot> GhostCreators, ActiveGhosts;
     local StateObjectReference GhostRef;
 
 	History = `XCOMHISTORY;
+	GhostCreators = GetAllGhostCreators();
 
-	foreach GetAllGhostCreators()(GhostCreator)
+	foreach GhostCreators(GhostCreator)
 	{
 		foreach GhostCreator.Ghosts(GhostRef)
 		{
@@ -507,10 +508,12 @@ static function array<XComGameState_StaffSlot> GetAllGhosts()
 static function array<XComGameState_StaffSlot> GetAllGhostCreators()
 {
 	local XComGameState_StaffSlot StaffSlot;
-	local array<XComGameState_StaffSlot> GhostCreators;
+	local array<XComGameState_StaffSlot> StaffSlots, GhostCreators;
+
+	StaffSlots = GetAllStaffSlots(true);
 
 	// We only care about filled StaffSlots as empty slots do not produce ghosts by themselves
-	foreach GetAllStaffSlots(true)(StaffSlot)
+	foreach StaffSlots(StaffSlot)
 	{
 		if (StaffSlot.IsCreator())
 		{

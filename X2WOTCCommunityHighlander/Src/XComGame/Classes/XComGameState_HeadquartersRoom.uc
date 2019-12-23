@@ -243,7 +243,7 @@ function array<XComGameState_StaffSlot> GetAdjacentStaffSlots()
 // Start Issue #706
 function array<XComGameState_StaffSlot> GetAdjacentGhostCreatingStaffSlots()
 {
-	local array<XComGameState_StaffSlot> AdjacentCreatorStaffSlots;
+	local array<XComGameState_StaffSlot> AdjacentSlots, AdjacentCreatorStaffSlots;
 	local XComGameState_StaffSlot StaffSlot;
 
 	if (class'CHHelpers'.default.GremlinsAnywhere)
@@ -251,7 +251,9 @@ function array<XComGameState_StaffSlot> GetAdjacentGhostCreatingStaffSlots()
 		return class'CHHelpers'.static.GetAllGhostCreators();
 	}
 
-	foreach GetAdjacentStaffSlots()(StaffSlot)
+	AdjacentSlots = GetAdjacentStaffSlots();
+
+	foreach AdjacentSlots(StaffSlot)
 	{
 		// Slot has to be filled in order to create Ghosts
 		if (StaffSlot.IsCreator() && StaffSlot.IsSlotFilled())
@@ -266,10 +268,12 @@ function array<XComGameState_StaffSlot> GetAdjacentGhostCreatingStaffSlots()
 // Get all adjacent Staffslots which are filled with ghosts created by CreatorUnitRef
 function array<XComGameState_StaffSlot> GetAdjacentGhostFilledStaffSlots(StateObjectReference CreatorUnitRef)
 {
-	local array<XComGameState_StaffSlot> AdjacentGhostFilledStaffSlots;
+	local array<XComGameState_StaffSlot> AdjacentSlots, AdjacentGhostFilledStaffSlots;
 	local XComGameState_StaffSlot StaffSlot;
 
-	foreach GetAdjacentStaffSlots()(StaffSlot)
+	AdjacentSlots = GetAdjacentStaffSlots();
+
+	foreach AdjacentSlots(StaffSlot)
 	{
 		if (StaffSlot.IsSlotFilledWithGhost() && StaffSlot.CreatedBy(CreatorUnitRef))
 		{
@@ -302,9 +306,11 @@ function bool HasOpenAdjacentStaffSlots(StaffUnitInfo UnitInfo)
 //---------------------------------------------------------------------------------------
 function bool HasAvailableAdjacentGhosts()
 {
+	local array<XComGameState_StaffSlot> GhostCreatingSlots;
 	local XComGameState_StaffSlot GhostCreatingSlot;
 
-	foreach GetAdjacentGhostCreatingStaffSlots()(GhostCreatingSlot)
+	GhostCreatingSlots = GetAdjacentGhostCreatingStaffSlots();
+	foreach GhostCreatingSlots(GhostCreatingSlot)
 	{
 // Start Issue #706
 		if (GhostCreatingSlot.HasAvailableGhosts())
