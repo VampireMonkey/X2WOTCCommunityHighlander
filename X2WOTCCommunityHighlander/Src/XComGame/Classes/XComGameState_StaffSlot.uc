@@ -16,7 +16,21 @@ var StateObjectReference			   CovertAction;
 var StaffUnitInfo					   AssignedStaff;
 
 var int								   MaxAdjacentGhostStaff; // the maximum number of ghost staff units this slot can create
+
+// Start Issue #706
+// DEPRECATED
 var int								   AvailableGhostStaff; // the current number of possible ghost units which can be staffed in adjacent rooms
+// DEPRECATED
+
+// This slot is filled with a Ghost Gremlin
+var bool IsGhost;
+// The Creator staffed unit
+var StateObjectReference CreatorRef;
+// The Creator Staffslot
+var StateObjectReference CreatorSlotRef;
+// References to Ghost children created by this Staffslot
+var array<StateObjectReference> Ghosts;
+// End Issue #706
 
 var() bool							   bIsLocked; // If the staff slot is locked and cannot be staffed
 var() bool							   bRequireFamous; // If this staff slot requires a famous unit to be staffed there
@@ -172,124 +186,106 @@ function bool IsSlotFilled()
 }
 
 //---------------------------------------------------------------------------------------
+// Start Issue #706
+// Cleaned boilerplate code
 function bool IsSlotFilledWithGhost(optional out XComGameState_StaffSlot GhostOwnerSlot)
 {
-	local array<XComGameState_StaffSlot> AdjacentGhostStaffSlots;
-	local XComGameState_StaffSlot AdjacentGhostStaffSlot;
-	local int iSlot;
-
-	if (IsSlotFilled())
+	if (IsSlotFilled() && IsGhost)
 	{
-		// First get any adjacent slots which could produce ghosts
-		AdjacentGhostStaffSlots = GetAdjacentGhostCreatingStaffSlots();
-		for (iSlot = 0; iSlot < AdjacentGhostStaffSlots.Length; iSlot++)
-		{
-			AdjacentGhostStaffSlot = AdjacentGhostStaffSlots[iSlot];
-
-			// If the owner of the ghost-creating staff slot is also staffed here, this unit is duplicated and therefore a ghost
-			if (AdjacentGhostStaffSlot.GetAssignedStaffRef().ObjectID == GetAssignedStaffRef().ObjectID)
-			{
-				GhostOwnerSlot = AdjacentGhostStaffSlot;
-				return true;
-			}
-		}
+		GhostOwnerSlot = XComGameState_StaffSlot(`XCOMHISTORY.GetGameStateForObjectID(CreatorSlotRef.ObjectID));
+		return true;
 	}
 
 	return false;
 }
 
-//---------------------------------------------------------------------------------------
+function bool IsSlotFilledWithCreator()
+{
+	if (IsSlotFilled() && IsCreator())
+	{
+		return true;
+	}
+
+	return false;
+}
+
 function array<XComGameState_StaffSlot> GetAdjacentStaffSlots()
 {
 	local array<XComGameState_StaffSlot> AdjacentStaffSlots;
 	local XComGameState_HeadquartersRoom RoomState;
-	local XComGameState_FacilityXCom FacilityState;
 
-	RoomState = GetRoom();
-	FacilityState = GetFacility();
+	RoomState = GetRoomAbsolute();
 
-	if (FacilityState == none && RoomState != none)
+	if (RoomState != none)
+	{
 		AdjacentStaffSlots = RoomState.GetAdjacentStaffSlots();
-	else if (FacilityState != none)
-		AdjacentStaffSlots = FacilityState.GetRoom().GetAdjacentStaffSlots();
+	}
 
 	return AdjacentStaffSlots;
 }
 
-//---------------------------------------------------------------------------------------
 function array<XComGameState_StaffSlot> GetAdjacentGhostCreatingStaffSlots()
 {
 	local array<XComGameState_StaffSlot> AdjacentStaffSlots;
 	local XComGameState_HeadquartersRoom RoomState;
-	local XComGameState_FacilityXCom FacilityState;
 
-	RoomState = GetRoom();
-	FacilityState = GetFacility();
+	RoomState = GetRoomAbsolute();
 
-	if (FacilityState == none && RoomState != none)
+	if (RoomState != none)
+	{
 		AdjacentStaffSlots = RoomState.GetAdjacentGhostCreatingStaffSlots();
-	else if (FacilityState != none)
-		AdjacentStaffSlots = FacilityState.GetRoom().GetAdjacentGhostCreatingStaffSlots();
-		
+	}
+
 	return AdjacentStaffSlots;
 }
 
-//---------------------------------------------------------------------------------------
 function bool HasOpenAdjacentStaffSlots(StaffUnitInfo UnitInfo)
 {
 	local XComGameState_HeadquartersRoom RoomState;
-	local XComGameState_FacilityXCom FacilityState;
 
-	RoomState = GetRoom();
-	FacilityState = GetFacility();
+	RoomState = GetRoomAbsolute();
 
-	if (FacilityState == none && RoomState != none)
+	if (RoomState != none)
+	{
 		return RoomState.HasOpenAdjacentStaffSlots(UnitInfo);
-	else if (FacilityState != none)
-		return FacilityState.GetRoom().HasOpenAdjacentStaffSlots(UnitInfo);
+	}
 
 	return false;
 }
 
-//---------------------------------------------------------------------------------------
 function bool HasAvailableAdjacentGhosts()
 {
 	local XComGameState_HeadquartersRoom RoomState;
-	local XComGameState_FacilityXCom FacilityState;
 
-	RoomState = GetRoom();
-	FacilityState = GetFacility();
+	RoomState = GetRoomAbsolute();
 
-	if (FacilityState == none && RoomState != none)
+	if (RoomState != none)
+	{
 		return RoomState.HasAvailableAdjacentGhosts();
-	else if (FacilityState != none)
-		return FacilityState.GetRoom().HasAvailableAdjacentGhosts();
+	}
 
 	return false;
 }
 
-//---------------------------------------------------------------------------------------
-// Get any adjacent staff slots which are filled with ghosts created by this staff slot
+// Get all adjacent staffslots which are filled with ghosts created by this staffslot
 function array<XComGameState_StaffSlot> GetAdjacentGhostFilledStaffSlots()
 {
 	local array<XComGameState_StaffSlot> GhostFilledStaffSlots;
 	local XComGameState_HeadquartersRoom RoomState;
-	local XComGameState_FacilityXCom FacilityState;
 
-	RoomState = GetRoom();
-	FacilityState = GetFacility();
-	
-	// Check that this slot creates ghosts and is filled
-	if (GetMyTemplate().CreatesGhosts && IsSlotFilled())
+	if (IsSlotFilledWithCreator())
 	{
-		if (FacilityState == none && RoomState != none)
+		RoomState = GetRoomAbsolute();
+
+		if (RoomState != none)
+		{
 			GhostFilledStaffSlots = RoomState.GetAdjacentGhostFilledStaffSlots(GetAssignedStaffRef());
-		else if (FacilityState != none)
-			GhostFilledStaffSlots = FacilityState.GetRoom().GetAdjacentGhostFilledStaffSlots(GetAssignedStaffRef());
+		}
 	}
 
 	return GhostFilledStaffSlots;
 }
+// End Issue #706
 
 //---------------------------------------------------------------------------------------
 function bool IsSlotEmpty()
@@ -707,6 +703,13 @@ function bool IsSoldierSlot()
 	return GetMyTemplate().bSoldierSlot;
 }
 
+// Start Issue #706
+function bool IsCreator()
+{
+	return GetMyTemplate().CreatesGhosts;
+}
+// End Issue #706
+
 //#############################################################################################
 //----------------   HELPERS   ----------------------------------------------------------------
 //#############################################################################################
@@ -737,6 +740,33 @@ function XComGameState_HeadquartersRoom GetRoom()
 		return None;
 }
 
+// Start Issue #706
+// If regular GetRoom fails, it will try to get the room with GetFacility
+// Cuts down on boilerplate code, based on original boilerplate room code
+function XComGameState_HeadquartersRoom GetRoomAbsolute()
+{
+	local XComGameState_HeadquartersRoom RoomState;
+	local XComGameState_FacilityXCom FacilityState;
+
+	RoomState = GetRoom();
+	FacilityState = GetFacility();
+
+	if (FacilityState == none)
+	{
+		if (RoomState != none)
+		{
+			return RoomState;
+		}
+	}
+	else
+	{
+		return FacilityState.GetRoom();
+	}
+
+	return none;
+}
+// End Issue #706
+
 //---------------------------------------------------------------------------------------
 function XComGameState_CovertAction GetCovertAction()
 {
@@ -764,6 +794,63 @@ function XComGameState_StaffSlot GetLinkedStaffSlot()
 }
 
 //---------------------------------------------------------------------------------------
+// Start Issue #706
+function AddCreator(StateObjectReference CreatorUnit)
+{
+	local XComGameState_Unit Creator;
+
+	Creator = XComGameState_Unit(`XCOMHISTORY.GetGameStateForObjectID(CreatorUnit.ObjectID));
+	CreatorRef = Creator.GetReference();
+	CreatorSlotRef = Creator.GetStaffSlot().GetReference();
+}
+function RemoveCreator()
+{
+	local StateObjectReference EmptyRef;
+
+	CreatorRef = EmptyRef;
+	CreatorSlotRef = EmptyRef;
+}
+function AddGhost(StateObjectReference GhostRef)
+{
+	Ghosts.AddItem(GhostRef);
+}
+function RemoveGhost(StateObjectReference GhostRef)
+{
+	local int i;
+
+	i = Ghosts.Find('ObjectID', GhostRef.ObjectID);
+
+	if (i != INDEX_NONE)
+	{
+		Ghosts.Remove(i, 1);
+	}
+}
+function bool CreatedBy(StateObjectReference GhostCreatorRef)
+{
+	return (CreatorRef.ObjectID == GhostCreatorRef.ObjectID);
+}
+function XComGameState_Unit GetCreator()
+{
+	return XComGameState_Unit(`XCOMHISTORY.GetGameStateForObjectID(CreatorRef.ObjectID));
+}
+function XComGameState_StaffSlot GetCreatorSlot()
+{
+	return XComGameState_StaffSlot(`XCOMHISTORY.GetGameStateForObjectID(CreatorSlotRef.ObjectID));
+}
+function bool HasGhosts()
+{
+	return (Ghosts.Length > 0);
+}
+function int AvailableGhosts()
+{
+	return (MaxAdjacentGhostStaff - Ghosts.Length);
+}
+function bool HasAvailableGhosts()
+{
+	return (Ghosts.Length < MaxAdjacentGhostStaff);
+}
+// End Issue #706
+
 DefaultProperties
 {
 }

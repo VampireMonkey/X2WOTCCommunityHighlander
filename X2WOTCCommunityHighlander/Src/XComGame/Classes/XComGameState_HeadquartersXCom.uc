@@ -9329,6 +9329,19 @@ function int GetShakenRecoveryMissions()
 simulated native function int GetGenericKeyValue(string key);
 simulated native function SetGenericKeyValue(string key, INT Value);
 
+// Start Issue #706
+
+
+
+
+
+
+
+
+
+// End Issue #706
+
+
 /////////////////////////////////////////////////////////////////////////////////////////
 // cpptext
 

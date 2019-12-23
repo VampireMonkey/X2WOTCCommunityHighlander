@@ -240,44 +240,49 @@ function array<XComGameState_StaffSlot> GetAdjacentStaffSlots()
 	return AdjacentStaffSlots;
 }
 
-//---------------------------------------------------------------------------------------
+// Start Issue #706
 function array<XComGameState_StaffSlot> GetAdjacentGhostCreatingStaffSlots()
 {
-	local array<XComGameState_StaffSlot> AdjacentStaffSlots, AdjacentGhostStaffSlots;
-	local int idx;
-	
-	AdjacentStaffSlots = GetAdjacentStaffSlots();
+	local array<XComGameState_StaffSlot> AdjacentCreatorStaffSlots;
+	local XComGameState_StaffSlot StaffSlot;
 
-	for (idx = 0; idx < AdjacentStaffSlots.Length; idx++)
+	`XEVENTMGR.TriggerEvent('GetAdjacentGhostCreatingStaffSlots', AdjacentCreatorStaffSlots, self);
+
+	// If changes has been made by an EventListener return those changes instead of default behavior
+	if (AdjacentCreatorStaffSlots.Length > 0)
 	{
-		if (AdjacentStaffSlots[idx].MaxAdjacentGhostStaff > 0)
+		return AdjacentCreatorStaffSlots;
+	}
+
+	foreach GetAdjacentStaffSlots()(StaffSlot)
+	{
+		// Slot has to be filled in order to create Ghosts
+		if (StaffSlot.IsCreator() && StaffSlot.IsSlotFilled())
 		{
-			AdjacentGhostStaffSlots.AddItem(AdjacentStaffSlots[idx]);
+			AdjacentCreatorStaffSlots.AddItem(StaffSlot);
 		}
 	}
 
-	return AdjacentGhostStaffSlots;
+	return AdjacentCreatorStaffSlots;
 }
 
-//---------------------------------------------------------------------------------------
-// Get any adjacent staff slots which are filled with ghosts created by the provided unit
-function array<XComGameState_StaffSlot> GetAdjacentGhostFilledStaffSlots(StateObjectReference GhostCreatorRef)
+// Get all adjacent Staffslots which are filled with ghosts created by CreatorUnitRef
+function array<XComGameState_StaffSlot> GetAdjacentGhostFilledStaffSlots(StateObjectReference CreatorUnitRef)
 {
-	local array<XComGameState_StaffSlot> AdjacentStaffSlots, GhostFilledStaffSlots;
-	local int idx;
+	local array<XComGameState_StaffSlot> AdjacentGhostFilledStaffSlots;
+	local XComGameState_StaffSlot StaffSlot;
 
-	AdjacentStaffSlots = GetAdjacentStaffSlots();
-
-	for (idx = 0; idx < AdjacentStaffSlots.Length; idx++)
+	foreach GetAdjacentStaffSlots()(StaffSlot)
 	{
-		if (AdjacentStaffSlots[idx].GetAssignedStaffRef().ObjectID == GhostCreatorRef.ObjectID)
+		if (StaffSlot.IsSlotFilledWithGhost() && StaffSlot.CreatedBy(CreatorUnitRef))
 		{
-			GhostFilledStaffSlots.AddItem(AdjacentStaffSlots[idx]);
+			AdjacentGhostFilledStaffSlots.AddItem(StaffSlot);
 		}
 	}
 
-	return GhostFilledStaffSlots;
+	return AdjacentGhostFilledStaffSlots;
 }
+// End Issue #706
 
 //---------------------------------------------------------------------------------------
 function bool HasOpenAdjacentStaffSlots(StaffUnitInfo UnitInfo)
@@ -300,14 +305,14 @@ function bool HasOpenAdjacentStaffSlots(StaffUnitInfo UnitInfo)
 //---------------------------------------------------------------------------------------
 function bool HasAvailableAdjacentGhosts()
 {
-	local array<XComGameState_StaffSlot> GhostCreatingSlots;
 	local XComGameState_StaffSlot GhostCreatingSlot;
 
-	GhostCreatingSlots = GetAdjacentGhostCreatingStaffSlots();
-	foreach GhostCreatingSlots(GhostCreatingSlot)
+	foreach GetAdjacentGhostCreatingStaffSlots()(GhostCreatingSlot)
 	{
-		if (GhostCreatingSlot.AvailableGhostStaff > 0)
+// Start Issue #706
+		if (GhostCreatingSlot.HasAvailableGhosts())
 		{
+// End Issue #706
 			return true;
 		}
 	}
