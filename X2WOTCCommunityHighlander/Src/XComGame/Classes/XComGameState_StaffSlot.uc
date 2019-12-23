@@ -470,6 +470,10 @@ function FillSlot(StaffUnitInfo UnitInfo, optional XComGameState NewGameState)
 	{
 		GetMyTemplate().FillFn(NewGameState, self.GetReference(), UnitInfo);
 
+		// Start Issue #706
+		IsGhost = UnitInfo.bGhostUnit;
+		// End Issue #706
+
 		`XEVENTMGR.TriggerEvent('StaffUpdated', self, self, NewGameState);
 	}
 	else
@@ -503,6 +507,10 @@ function EmptySlot(optional XComGameState NewGameState)
 		if(GetMyTemplate().EmptyFn != none)
 		{
 			GetMyTemplate().EmptyFn(NewGameState, self.GetReference());
+
+			// Start Issue #706
+			IsGhost = false;
+			// End Issue #706
 
 			`XEVENTMGR.TriggerEvent('StaffUpdated', self, self, NewGameState);
 		}
