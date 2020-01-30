@@ -86,6 +86,8 @@ var config bool AmmoSlotBypassUniqueRule;
 // Start Issue #706
 // Ignore adjacency requirement for Staffing Ghost Gremlins
 var config bool GremlinsAnywhere;
+// Since we can't add a bIsGhost variable to X2CharacterTemplate, this is a workaround to check if the Unit is a Ghost
+var config array<name> GhostTemplateNames;
 // End Issue #706
 
 // Start Issue #219
@@ -479,30 +481,28 @@ static function array<XComGameState_StaffSlot> GetAllStaffSlots(optional bool Fi
 	return StaffSlots;
 }
 
-static function array<XComGameState_StaffSlot> GetAllGhosts()
+static function array<XComGameState_Unit> GetAllGhosts()
 {
 	local XComGameStateHistory History;
-	local XComGameState_StaffSlot StaffSlot, GhostCreator;
-	local array<XComGameState_StaffSlot> GhostCreators, ActiveGhosts;
-    local StateObjectReference GhostRef;
+	local array<XComGameState_StaffSlot> GhostCreators;
+	local array<XComGameState_Unit> Ghosts;
+	local XComGameState_StaffSlot Creator;
+	local StateObjectReference GhostRef;
+	local XComGameState_Unit Ghost;
 
 	History = `XCOMHISTORY;
 	GhostCreators = GetAllGhostCreators();
 
-	foreach GhostCreators(GhostCreator)
+	foreach GhostCreators(Creator)
 	{
-		foreach GhostCreator.Ghosts(GhostRef)
+		foreach Creator.Ghosts(GhostRef)
 		{
-			StaffSlot = XComGameState_StaffSlot(History.GetGameStateForObjectID(GhostRef.ObjectID));
-
-			if (StaffSlot != none)
-			{
-				ActiveGhosts.AddItem(StaffSlot);
-			}
+			Ghost = XComGameState_Unit(History.GetGameStateForObjectID(GhostRef.ObjectID));
+			Ghosts.AddItem(Ghost);
 		}
 	}
 
-	return ActiveGhosts;
+	return Ghosts;
 }
 
 static function array<XComGameState_StaffSlot> GetAllGhostCreators()
@@ -522,5 +522,33 @@ static function array<XComGameState_StaffSlot> GetAllGhostCreators()
 	}
 
 	return GhostCreators;
+}
+
+static function array<XComGameState_Unit> GetAllAvailableGhosts()
+{
+	local array<XComGameState_StaffSlot> GhostCreators;
+	local array<XComGameState_Unit> AvailableGhosts, Ghosts;
+	local XComGameState_StaffSlot Creator;
+	local XComGameState_Unit Ghost;
+
+	GhostCreators = GetAllGhostCreators();
+
+	foreach GhostCreators(Creator)
+	{
+		AvailableGhosts = Creator.GetAvailableGhosts();
+
+		foreach AvailableGhosts(Ghost)
+		{
+			Ghosts.AddItem(Ghost);
+		}
+	}
+
+	return Ghosts;
+}
+
+static function Name GetGhostTemplateName()
+{
+	// For now, use only the first entry
+	return default.GhostTemplateNames[0];
 }
 // End Issue #706

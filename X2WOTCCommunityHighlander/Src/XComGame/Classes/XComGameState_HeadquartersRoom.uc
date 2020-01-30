@@ -246,17 +246,17 @@ function array<XComGameState_StaffSlot> GetAdjacentGhostCreatingStaffSlots()
 	local array<XComGameState_StaffSlot> AdjacentSlots, AdjacentCreatorStaffSlots;
 	local XComGameState_StaffSlot StaffSlot;
 
+	// TODO: Testing
 	if (class'CHHelpers'.default.GremlinsAnywhere)
 	{
 		return class'CHHelpers'.static.GetAllGhostCreators();
 	}
-
+	
 	AdjacentSlots = GetAdjacentStaffSlots();
 
 	foreach AdjacentSlots(StaffSlot)
 	{
-		// Slot has to be filled in order to create Ghosts
-		if (StaffSlot.IsCreator() && StaffSlot.IsSlotFilled())
+		if (StaffSlot.IsSlotFilledWithCreator())
 		{
 			AdjacentCreatorStaffSlots.AddItem(StaffSlot);
 		}

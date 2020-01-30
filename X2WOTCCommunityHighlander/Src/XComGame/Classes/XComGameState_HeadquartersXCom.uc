@@ -2423,9 +2423,12 @@ function int GetNumberOfUnstaffedEngineers()
 //---------------------------------------------------------------------------------------
 function array<StaffUnitInfo> GetUnstaffedEngineers()
 {
-	local XComGameState_Unit Engineer;
+	// Start Issue #706
+	local array<XComGameState_Unit> Ghosts;
+	local XComGameState_Unit Engineer, Ghost;
+	local int idx;
+	// End Issue #706
 	local XComGameState_StaffSlot SlotState;
-	local int idx, iGhostCount;
 	local array<StaffUnitInfo> UnstaffedEngineers;
 	local StaffUnitInfo UnitInfo;
 
@@ -2446,18 +2449,21 @@ function array<StaffUnitInfo> GetUnstaffedEngineers()
 				else if (Engineer.StaffingSlot.ObjectID != 0)
 				{
 					SlotState = Engineer.GetStaffSlot();
-					iGhostCount = SlotState.AvailableGhostStaff;
-					UnitInfo.bGhostUnit = true;
-					
-					// Checking for available ghosts and available adjacent staff slots
-					if (iGhostCount > 0 && SlotState.HasOpenAdjacentStaffSlots(UnitInfo))
+
+					// Start Issue #706
+					// Checking for available ghosts and available adjacent staffslots
+					if (SlotState.HasGhosts() && SlotState.HasOpenAdjacentStaffSlots(UnitInfo))
 					{
-						while (iGhostCount > 0)
+						Ghosts = SlotState.GetAvailableGhosts();
+						UnitInfo.bGhostUnit = true;
+					
+						foreach Ghosts(Ghost)
 						{
+							UnitInfo.UnitRef = Ghost.GetReference();
 							UnstaffedEngineers.AddItem(UnitInfo);
-							iGhostCount--;
 						}
 					}
+					// End Issue #706
 				}
 			}
 		}

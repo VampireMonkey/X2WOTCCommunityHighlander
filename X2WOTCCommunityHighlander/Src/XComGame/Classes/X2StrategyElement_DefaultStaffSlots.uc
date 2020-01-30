@@ -265,9 +265,9 @@ static function FillWorkshopSlot(XComGameState NewGameState, StateObjectReferenc
 	
 	FillSlot(NewGameState, SlotRef, UnitInfo, NewSlotState, NewUnitState);
 
-	// Add special staffing gremlins
-	NewSlotState.MaxAdjacentGhostStaff = GetWorkshopContribution(NewUnitState);
-	NewSlotState.AvailableGhostStaff = NewSlotState.MaxAdjacentGhostStaff;
+// Start Issue #706
+	NewSlotState.CreateGhosts(NewGameState);
+// End Issue #706
 }
 
 static function EmptyWorkshopSlot(XComGameState NewGameState, StateObjectReference SlotRef)
@@ -277,10 +277,9 @@ static function EmptyWorkshopSlot(XComGameState NewGameState, StateObjectReferen
 	
 	EmptySlot(NewGameState, SlotRef, NewSlotState, NewUnitState);
 
-	// Should never enter this function if special staffing gremlins are still active
-	// Set the number of available staffing gremlins to 0
-	NewSlotState.MaxAdjacentGhostStaff = 0;
-	NewSlotState.AvailableGhostStaff = 0;
+// Start Issue #706
+	NewSlotState.RemoveGhosts(NewGameState);
+// End Issue #706
 }
 
 static function bool CanStaffBeMovedWorkshop(StateObjectReference SlotRef)
@@ -291,7 +290,9 @@ static function bool CanStaffBeMovedWorkshop(StateObjectReference SlotRef)
 	History = `XCOMHISTORY;
 	SlotState = XComGameState_StaffSlot(History.GetGameStateForObjectID(SlotRef.ObjectID));
 
-	if (SlotState.AvailableGhostStaff == SlotState.MaxAdjacentGhostStaff)
+// Start Issue #706
+	if (!SlotState.HasStaffedGhosts())
+// End Issue #706
 		return true;
 	else
 		return false;
@@ -311,7 +312,9 @@ static function string GetWorkshopBonusDisplayString(XComGameState_StaffSlot Slo
 
 static function bool IsWorkshopBusy(XComGameState_StaffSlot SlotState)
 {
-	return (SlotState.AvailableGhostStaff < SlotState.MaxAdjacentGhostStaff);
+// Start Issue #706
+	return SlotState.HasStaffedGhosts();
+// End Issue #706
 }
 
 //#############################################################################################
@@ -1468,60 +1471,55 @@ static function array<StaffUnitInfo> GetValidUnitsForSlotDefault(XComGameState_S
 	return ValidUnits;
 }
 
-static function AddGhostUnits(out array<StaffUnitInfo> ValidUnits, XComGameState_StaffSlot SlotState)
+static function AddGhostUnits(out array<StaffUnitInfo> ValidUnits, XComGameState_StaffSlot Slot)
 {
-	local int i, iSlot, NumUnassignedGhostStaff;
-	local array<XComGameState_StaffSlot> AdjacentGhostStaffSlots;
-	local array<XComGameState_StaffSlot> GhostFilledStaffSlots;
-	local XComGameState_StaffSlot GhostFilledSlot;
-	local XComGameState_Unit Unit;
+	// Start Issue #706
+	local array<XComGameState_StaffSlot> Creators_Adjacent;
+	local array<XComGameState_Unit> Ghosts_Available, Ghosts_Staffed;
+	local XComGameState_Unit Ghost;
+	local XComGameState_StaffSlot Creator, Ghost_StaffSlot;
+	local XComGameState_HeadquartersRoom Slot_Room, Ghost_Room;
 	local StaffUnitInfo UnitInfo;
 
-	// If there are any ghost staff units created by adjacent slots, add them to the staff list
-	AdjacentGhostStaffSlots = SlotState.GetAdjacentGhostCreatingStaffSlots();
-	for (i = 0; i < AdjacentGhostStaffSlots.Length; i++)
+	Creators_Adjacent = Slot.GetAdjacentGhostCreatingStaffSlots();
+
+	UnitInfo.bGhostUnit = true;
+	UnitInfo.GhostLocation.ObjectID = 0;
+
+	// Add in the Available Ghosts first
+	foreach Creators_Adjacent(Creator)
 	{
-		NumUnassignedGhostStaff = AdjacentGhostStaffSlots[i].AvailableGhostStaff;
-		Unit = AdjacentGhostStaffSlots[i].GetAssignedStaff();
-
-		// Failsafe check to ensure that ghosts are only displayed for matching unit and staff slot references
-		if (Unit.StaffingSlot.ObjectID == AdjacentGhostStaffSlots[i].ObjectID)
+		Ghosts_Available = Creator.GetAvailableGhosts();
+		
+		foreach Ghosts_Available(Ghost)
 		{
-			// Create ghosts duplicating the unit who is staffed in the ghost-creating slot
-			UnitInfo.UnitRef = Unit.GetReference();
-			UnitInfo.bGhostUnit = true;
-			UnitInfo.GhostLocation.ObjectID = 0;
+			UnitInfo.UnitRef = Ghost.GetReference();
+			ValidUnits.AddItem(UnitInfo);
+		}
+	}
 
-			// First add an item for each of the unassigned GREMLINs, if they are valid for the slot
-			if (SlotState.ValidUnitForSlot(UnitInfo))
+	Slot_Room = Slot.GetRoomAbsolute();
+
+	// Then add the relocatable Ghosts to the bottom of the dropdown list
+	foreach Creators_Adjacent(Creator)
+	{
+		Ghosts_Staffed = Creator.GetStaffedGhosts();
+		
+		foreach Ghosts_Staffed(Ghost)
+		{
+			Ghost_StaffSlot = Ghost.GetStaffSlot();
+			Ghost_Room = Ghost_StaffSlot.GetRoomAbsolute();
+
+			// Don't show the Ghost if it's in the same room as the Slot we're trying to fill
+			if (Ghost_Room != Slot_Room)
 			{
-				for (iSlot = 0; iSlot < NumUnassignedGhostStaff; iSlot++)
-				{
-					ValidUnits.AddItem(UnitInfo);
-				}
-			}
-
-			// Then add an item for all of the GREMLINs which were created by the ghost creating slot, and are already assigned to slots adjacent to it
-			GhostFilledStaffSlots = AdjacentGhostStaffSlots[i].GetAdjacentGhostFilledStaffSlots();
-			for (iSlot = 0; iSlot < GhostFilledStaffSlots.Length; iSlot++)
-			{
-				GhostFilledSlot = GhostFilledStaffSlots[iSlot];
-				UnitInfo.GhostLocation = GhostFilledStaffSlots[iSlot].GetReference();
-
-				// Check if the ghost is allowed to be moved to the new slot, now that it has its correct current location
-				if (SlotState.ValidUnitForSlot(UnitInfo))
-				{
-					// If the ghost-filled slot is in the same room or facility as the slot we want to fill, don't show that ghost in the list
-					if ((GhostFilledSlot.Room.ObjectID != 0 && GhostFilledSlot.Room.ObjectID != SlotState.Room.ObjectID) ||
-						(GhostFilledSlot.Facility.ObjectID != 0 && GhostFilledSlot.Facility.ObjectID != SlotState.Facility.ObjectID))
-					{
-						// Otherwise, add it to the dropdown as available to relocate
-						ValidUnits.AddItem(UnitInfo);
-					}
-				}
+				UnitInfo.UnitRef = Ghost.GetReference();		
+				UnitInfo.GhostLocation.ObjectID = Ghost_StaffSlot.GetReference().ObjectID;
+				ValidUnits.AddItem(UnitInfo);
 			}
 		}
 	}
+	// End Issue #706
 }
 
 static function bool IsUnitValidForSlotDefault(XComGameState_StaffSlot SlotState, StaffUnitInfo UnitInfo)
@@ -1611,7 +1609,6 @@ static function bool IsStaffSlotBusyDefault(XComGameState_StaffSlot SlotState)
 
 static function FillSlot(XComGameState NewGameState, StateObjectReference SlotRef, StaffUnitInfo UnitInfo, out XComGameState_StaffSlot NewSlotState, out XComGameState_Unit NewUnitState)
 {
-	local XComGameState_StaffSlot GhostOwnerSlot;
 	local XComGameState_Unit PairUnitState;
 
 	NewSlotState = XComGameState_StaffSlot(NewGameState.ModifyStateObject(class'XComGameState_StaffSlot', SlotRef.ObjectID));
@@ -1624,12 +1621,9 @@ static function FillSlot(XComGameState NewGameState, StateObjectReference SlotRe
 		// We just staffed a ghost for the first time, so update the allowed count in the owner's staff slot
 		// Still need to return a unit state, even if it isn't actually new
 		NewUnitState = XComGameState_Unit(`XCOMHISTORY.GetGameStateForObjectID(UnitInfo.UnitRef.ObjectID));
-		GhostOwnerSlot = NewUnitState.GetStaffSlot(); // the staff slot where the ghost owner is living
-		GhostOwnerSlot = XComGameState_StaffSlot(NewGameState.ModifyStateObject(class'XComGameState_StaffSlot', GhostOwnerSlot.ObjectID));
-		GhostOwnerSlot.AvailableGhostStaff -= 1;
-
-		if (GhostOwnerSlot.AvailableGhostStaff < 0)
-			GhostOwnerSlot.AvailableGhostStaff = 0;
+		// Start Issue #706
+		NewSlotState.AddCreator(UnitInfo.UnitRef);
+		// End Issue #706
 	}
 	else
 	{
@@ -1647,22 +1641,19 @@ static function FillSlot(XComGameState NewGameState, StateObjectReference SlotRe
 
 static function EmptySlot(XComGameState NewGameState, StateObjectReference SlotRef, out XComGameState_StaffSlot NewSlotState, out XComGameState_Unit NewUnitState)
 {
-	local XComGameState_StaffSlot GhostOwnerSlot;
 	local XComGameState_Unit PairUnitState;
 	local StateObjectReference EmptyRef;
 
 	NewSlotState = XComGameState_StaffSlot(NewGameState.ModifyStateObject(class'XComGameState_StaffSlot', SlotRef.ObjectID));
 		
 	// When a ghost gets unstaffed, it accesses the ghost-creating staff slot and increases the available ghosts counter.
-	if (NewSlotState.IsSlotFilledWithGhost(GhostOwnerSlot))
+	if (NewSlotState.IsSlotFilledWithGhost())
 	{
 		// Still need to return a unit state, even if it isn't actually new
 		NewUnitState = XComGameState_Unit(`XCOMHISTORY.GetGameStateForObjectID(NewSlotState.AssignedStaff.UnitRef.ObjectID));
-		GhostOwnerSlot = XComGameState_StaffSlot(NewGameState.ModifyStateObject(class'XComGameState_StaffSlot', GhostOwnerSlot.ObjectID));
-		GhostOwnerSlot.AvailableGhostStaff += 1;
-
-		if (GhostOwnerSlot.AvailableGhostStaff > GhostOwnerSlot.MaxAdjacentGhostStaff)
-			GhostOwnerSlot.AvailableGhostStaff = GhostOwnerSlot.MaxAdjacentGhostStaff;
+		// Start Issue #706
+		NewSlotState.RemoveCreator();
+		// End Issue #706
 	}
 	else
 	{

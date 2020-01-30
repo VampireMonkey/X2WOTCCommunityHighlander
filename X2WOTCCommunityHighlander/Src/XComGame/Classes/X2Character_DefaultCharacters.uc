@@ -229,6 +229,11 @@ static function array<X2DataTemplate> CreateTemplates()
 	Templates.AddItem(CreateSpeakerTemplate('ResistanceDJ', "Resistance Radio", "img:///UILibrary_XPACK_Common.Head_Radio"));
 	Templates.AddItem(CreateSpeakerTemplate('Singer', "Resistance Radio", "img:///UILibrary_XPACK_Common.Head_Radio"));
 
+
+// Start Issue #706
+	Templates.AddItem(CreateTemplate_Ghost());
+// End Issue #706
+
 	return Templates;
 }
 
@@ -6310,3 +6315,94 @@ static function X2CharacterTemplate CreateTemplate_SpectralZombie(name CharTempl
 
 	return CharTemplate;
 }
+
+// Start Issue #706
+static function X2CharacterTemplate CreateTemplate_Ghost()
+{
+	local X2CharacterTemplate Template;
+	
+	`CREATE_X2CHARACTER_TEMPLATE(Template, 'Ghost');
+
+	Template.CharacterGroupName = 'Ghost';
+
+	// Based on the 'Engineer' & 'GremlinMk1' Character Templates
+	Template.CharacterBaseStats[eStat_HP] = 1;
+	Template.CharacterBaseStats[eStat_Offense] = 0;
+	Template.CharacterBaseStats[eStat_Defense] = 0;
+	Template.CharacterBaseStats[eStat_Mobility] = 12;
+	Template.CharacterBaseStats[eStat_SightRadius] = 27;
+	Template.CharacterBaseStats[eStat_Will] = 50;
+	Template.CharacterBaseStats[eStat_FlightFuel] = 0;
+	Template.CharacterBaseStats[eStat_UtilityItems] = 1;
+	Template.CharacterBaseStats[eStat_AlertLevel] = 2;
+	Template.UnitSize = 1;
+	Template.AvengerOffset.X = 45;
+	Template.AvengerOffset.Y = 90;
+	Template.AvengerOffset.Z = -20;
+	Template.BehaviorClass = class'XGAIBehavior_Civilian';
+	Template.bCanUse_eTraversal_Normal = true;
+	Template.bCanUse_eTraversal_ClimbOver = false;
+	Template.bCanUse_eTraversal_ClimbOnto = false;
+	Template.bCanUse_eTraversal_ClimbLadder = false;
+	Template.bCanUse_eTraversal_DropDown = false;
+	Template.bCanUse_eTraversal_Grapple = false;
+	Template.bCanUse_eTraversal_Landing = true;
+	Template.bCanUse_eTraversal_BreakWindow = true;
+	Template.bCanUse_eTraversal_KickDoor = true;
+	Template.bCanUse_eTraversal_JumpUp = false;
+	Template.bCanUse_eTraversal_WallClimb = false;
+	Template.bCanUse_eTraversal_BreakWall = false;
+	Template.bCanUse_eTraversal_Launch = true;
+	Template.bCanUse_eTraversal_Flying = true;
+	Template.bCanUse_eTraversal_Land = true;
+	Template.bCanBeCriticallyWounded = false;
+	Template.bCanBeTerrorist = false;
+	Template.bAppearanceDefinesPawn = false;
+	Template.bIsAfraidOfFire = false;
+	Template.bIsAlien = false;
+	Template.bIsCivilian = false;
+	Template.bIsPsionic = false;
+	Template.bIsRobotic = true;
+	Template.bIsSoldier = false;
+	Template.bIsEngineer = true;
+	Template.bCanTakeCover = false;
+	Template.bDisplayUIUnitFlag = false;
+	Template.strPawnArchetypes.AddItem("GameUnit_GremlinMk1.ARC_GameUnit_GremlinMk1");
+	Template.bStaffingAllowed = true;
+	Template.bAppearInBase = true;
+
+	Template.bAllowRushCam = false;
+	Template.SoloMoveSpeedModifier = 2.0f;
+
+	Template.HQIdleAnim = "HL_Idle";
+	Template.HQOffscreenAnim = "HL_FlyUpStart";
+	Template.HQOnscreenAnimPrefix = "HL_FlyDwn";
+	Template.HQOnscreenOffset.X = 0;
+	Template.HQOnscreenOffset.Y = 0;
+	Template.HQOnscreenOffset.Z = 96.0f;
+
+	// Level-up Thresholds
+	Template.SkillLevelThresholds[0] = 0;
+	Template.SkillLevelThresholds[1] = 0;
+	Template.SkillLevelThresholds[2] = 0;
+	Template.SkillLevelThresholds[3] = 0;
+	Template.SkillLevelThresholds[4] = 0;
+	Template.SkillLevelThresholds[5] = 0;
+	Template.SkillLevelThresholds[6] = 600;
+	Template.SkillLevelThresholds[7] = 1500;
+	Template.SkillLevelThresholds[8] = 2500;
+	Template.SkillLevelThresholds[9] = 4000;
+	Template.SkillLevelThresholds[10] = 6000;
+
+	//Give this character type a specific palette selection
+	Template.DefaultAppearance.iArmorTint = class'XComContentManager'.default.DefaultEngineerArmorTint;
+	Template.DefaultAppearance.iArmorTintSecondary = class'XComContentManager'.default.DefaultEngineerArmorTintSecondary;
+
+	Template.bShouldCreateDifficultyVariants = false;
+
+	Template.strTargetIconImage = class'UIUtilities_Image'.const.TargetIcon_Civilian;
+	Template.CharacterGeneratorClass = class'XGCharacterGenerator';
+
+	return Template;
+}
+// End Issue #706

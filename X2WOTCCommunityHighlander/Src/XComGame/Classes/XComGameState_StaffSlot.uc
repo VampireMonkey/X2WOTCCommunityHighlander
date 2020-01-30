@@ -15,19 +15,14 @@ var StateObjectReference			   Room; // Use for staff slots that don't have a fac
 var StateObjectReference			   CovertAction;
 var StaffUnitInfo					   AssignedStaff;
 
-var int								   MaxAdjacentGhostStaff; // the maximum number of ghost staff units this slot can create
-
 // Start Issue #706
 // DEPRECATED
-var int								   AvailableGhostStaff; // the current number of possible ghost units which can be staffed in adjacent rooms
+var int MaxAdjacentGhostStaff; // the maximum number of ghost staff units this slot can create
+var int AvailableGhostStaff; // the current number of possible ghost units which can be staffed in adjacent rooms
 // DEPRECATED
 
-// This slot is filled with a Ghost Gremlin
-var bool IsGhost;
-// The Creator staffed unit
+// The Creator Unit
 var StateObjectReference CreatorRef;
-// The Creator Staffslot
-var StateObjectReference CreatorSlotRef;
 // References to Ghost children created by this Staffslot
 var array<StateObjectReference> Ghosts;
 // End Issue #706
@@ -190,9 +185,9 @@ function bool IsSlotFilled()
 // Cleaned boilerplate code
 function bool IsSlotFilledWithGhost(optional out XComGameState_StaffSlot GhostOwnerSlot)
 {
-	if (IsSlotFilled() && IsGhost)
+	if (IsSlotFilled() && IsGhost())
 	{
-		GhostOwnerSlot = XComGameState_StaffSlot(`XCOMHISTORY.GetGameStateForObjectID(CreatorSlotRef.ObjectID));
+		GhostOwnerSlot = GetCreatorSlot();
 		return true;
 	}
 
@@ -390,6 +385,9 @@ function AutoFillSlot()
 	local XComGameState_Unit UnitState;
 	local StateObjectReference StaffRef;
 	local StaffUnitInfo UnitInfo;
+	// Start Issue #706
+	local array<XComGameState_Unit> AvailableGhosts;
+	// End Issue #706
 
 	History = `XCOMHISTORY;
 	XComHQ = XComGameState_HeadquartersXCom(History.GetSingleGameStateObjectForClass(class'XComGameState_HeadquartersXCom'));
@@ -405,8 +403,13 @@ function AutoFillSlot()
 		// Only assign a ghost unit if there are adjacent slots with available ghosts next to this slot location
 		if (AdjacentGhostCreatingSlots.Length > 0)
 		{
-			if (AdjacentGhostCreatingSlots.Find(UnitSlotState) != INDEX_NONE && UnitSlotState.AvailableGhostStaff > 0)
+			// Start Issue #706
+			if ((AdjacentGhostCreatingSlots.Find(UnitSlotState) != INDEX_NONE) && UnitSlotState.HasAvailableGhosts())
 			{
+				AvailableGhosts = UnitSlotState.GetAvailableGhosts();
+				// Take the first free Ghost
+				UnitInfo.UnitRef = AvailableGhosts[0].GetReference();
+			// End Issue #706
 				UnitInfo.bGhostUnit = true;
 			}
 		}
@@ -429,7 +432,9 @@ function bool AssignStaffToSlot(StaffUnitInfo UnitInfo)
 
 	// First, if this slot provides ghosts make sure that it can be emptied (and replaced by the new unit)
 	// Because all ghost units must be manually unstaffed before the unit creating them can be replaced
-	if (MaxAdjacentGhostStaff > 0 && !CanBeEmptied())
+	// Start Issue #706
+	if (IsSlotFilledWithCreator() && !CanBeEmptied())
+	// End Issue #706
 	{
 		return false;
 	}
@@ -470,10 +475,6 @@ function FillSlot(StaffUnitInfo UnitInfo, optional XComGameState NewGameState)
 	{
 		GetMyTemplate().FillFn(NewGameState, self.GetReference(), UnitInfo);
 
-		// Start Issue #706
-		IsGhost = UnitInfo.bGhostUnit;
-		// End Issue #706
-
 		`XEVENTMGR.TriggerEvent('StaffUpdated', self, self, NewGameState);
 	}
 	else
@@ -507,10 +508,6 @@ function EmptySlot(optional XComGameState NewGameState)
 		if(GetMyTemplate().EmptyFn != none)
 		{
 			GetMyTemplate().EmptyFn(NewGameState, self.GetReference());
-
-			// Start Issue #706
-			IsGhost = false;
-			// End Issue #706
 
 			`XEVENTMGR.TriggerEvent('StaffUpdated', self, self, NewGameState);
 		}
@@ -803,34 +800,91 @@ function XComGameState_StaffSlot GetLinkedStaffSlot()
 
 //---------------------------------------------------------------------------------------
 // Start Issue #706
-function AddCreator(StateObjectReference CreatorUnit)
+function AddCreator(StateObjectReference Creator)
 {
-	local XComGameState_Unit Creator;
-
-	Creator = XComGameState_Unit(`XCOMHISTORY.GetGameStateForObjectID(CreatorUnit.ObjectID));
-	CreatorRef = Creator.GetReference();
-	CreatorSlotRef = Creator.GetStaffSlot().GetReference();
+	CreatorRef = Creator;
 }
 function RemoveCreator()
 {
 	local StateObjectReference EmptyRef;
 
 	CreatorRef = EmptyRef;
-	CreatorSlotRef = EmptyRef;
 }
-function AddGhost(StateObjectReference GhostRef)
+function CreateGhosts(optional XComGameState NewGameState)
 {
-	Ghosts.AddItem(GhostRef);
-}
-function RemoveGhost(StateObjectReference GhostRef)
-{
-	local int i;
+	local bool bSubmitNewGameState;
+	local XComGameState_HeadquartersXCom XComHQ;
+	local X2CharacterTemplateManager TemplateManager;
+	local X2CharacterTemplate GhostTemplate;
+	local XComGameState_Unit Ghost, Creator;
+	local int i, Creator_SkillLevel;
+	local name GhostTemplateName, Creator_Country;
+	local string Creator_FirstName, Creator_LastName, Creator_Nickname;
 
-	i = Ghosts.Find('ObjectID', GhostRef.ObjectID);
-
-	if (i != INDEX_NONE)
+	if (NewGameState == none)
 	{
-		Ghosts.Remove(i, 1);
+		NewGameState = class'XComGameStateContext_ChangeContainer'.static.CreateChangeState(string(GetFuncName()));
+		bSubmitNewGameState = true;
+	}
+
+	TemplateManager = class'X2CharacterTemplateManager'.static.GetCharacterTemplateManager();
+	GhostTemplateName = class'CHHelpers'.static.GetGhostTemplateName();
+	GhostTemplate = TemplateManager.FindCharacterTemplate(GhostTemplateName);	
+	XComHQ = `XCOMHQ;
+	XComHQ = XComGameState_HeadquartersXCom(NewGameState.ModifyStateObject(XComHQ.Class, XComHQ.ObjectID));
+	Creator = GetAssignedStaff();
+	Creator_SkillLevel = Creator.GetSkillLevel();
+	Creator_FirstName = Creator.GetFirstName();
+	Creator_LastName = Creator.GetLastName();
+	Creator_Nickname = Creator.GetNickName();
+	Creator_Country = Creator.GetCountry();
+
+	for (i = 0; i < MaxGhosts(); i++)
+	{
+		Ghost = GhostTemplate.CreateInstanceFromTemplate(NewGameState);
+		Ghost.SetCharacterName(Creator_FirstName, Creator_LastName, Creator_Nickname);
+		Ghost.SetCountry(Creator_Country);
+		Ghost.SetSkillLevel(Creator_SkillLevel);
+		XComHQ.AddToCrew(NewGameState, Ghost);
+	}
+	
+	`XEVENTMGR.TriggerEvent('CreateGhosts', self, self, NewGameState);
+
+	if (bSubmitNewGameState)
+	{
+		`XCOMGAME.GameRuleset.SubmitGameState(NewGameState);
+		UpdateXComHQ(); // XComHQ updates rely on the history, so only update if the new game state was submitted
+	}
+}
+function RemoveGhosts(optional XComGameState NewGameState)
+{
+	local bool bSubmitNewGameState;
+	local XComGameState_HeadquartersXCom XComHQ;
+	local StateObjectReference GhostRef;
+	local XComGameState_Unit Ghost;
+
+	if (NewGameState == none)
+	{
+		NewGameState = class'XComGameStateContext_ChangeContainer'.static.CreateChangeState(string(GetFuncName()));
+		bSubmitNewGameState = true;
+	}
+
+	XComHQ = `XCOMHQ;
+	XComHQ = XComGameState_HeadquartersXCom(NewGameState.ModifyStateObject(XComHQ.Class, XComHQ.ObjectID));
+
+	foreach Ghosts(GhostRef)
+	{
+		Ghost = XComGameState_Unit(NewGameState.ModifyStateObject(class'XComGameState_Unit', GhostRef.ObjectID));
+		XComHQ.RemoveFromCrew(GhostRef);
+		NewGameState.RemoveStateObject(Ghost.ObjectID);
+	}
+
+	`XEVENTMGR.TriggerEvent('RemoveGhosts', self, self, NewGameState);
+
+	if (bSubmitNewGameState)
+	{
+		`XCOMGAME.GameRuleset.SubmitGameState(NewGameState);
+		UpdateXComHQ(); // XComHQ updates rely on the history, so only update if the new game state was submitted
 	}
 }
 function bool CreatedBy(StateObjectReference GhostCreatorRef)
@@ -843,19 +897,84 @@ function XComGameState_Unit GetCreator()
 }
 function XComGameState_StaffSlot GetCreatorSlot()
 {
-	return XComGameState_StaffSlot(`XCOMHISTORY.GetGameStateForObjectID(CreatorSlotRef.ObjectID));
+	return GetCreator().GetStaffSlot();
 }
 function bool HasGhosts()
 {
 	return (Ghosts.Length > 0);
 }
+function array<XComGameState_Unit> GetAvailableGhosts()
+{
+	local XComGameStateHistory History;
+	local array<XComGameState_Unit> FreeGhosts;
+	local XComGameState_StaffSlot Slot;
+	local StateObjectReference GhostRef;
+	local XComGameState_Unit Ghost;
+
+	History = `XCOMHISTORY;
+
+	foreach Ghosts(GhostRef)
+	{
+		Ghost = XComGameState_Unit(History.GetGameStateForObjectID(GhostRef.ObjectID));
+		Slot = Ghost.GetStaffSlot();
+
+		if (Slot == None)
+		{
+			// Ghost isn't Staffed, therefore it's available
+			FreeGhosts.AddItem(Ghost);
+		}
+	}
+
+	return FreeGhosts;
+}
+function array<XComGameState_Unit> GetStaffedGhosts()
+{
+	local XComGameStateHistory History;
+	local array<XComGameState_Unit> BusyGhosts;
+	local XComGameState_StaffSlot Slot;
+	local StateObjectReference GhostRef;
+	local XComGameState_Unit Ghost;
+
+	History = `XCOMHISTORY;
+
+	foreach Ghosts(GhostRef)
+	{
+		Ghost = XComGameState_Unit(History.GetGameStateForObjectID(GhostRef.ObjectID));
+		Slot = Ghost.GetStaffSlot();
+
+		if (Slot != None)
+		{
+			// Ghost is Staffed
+			BusyGhosts.AddItem(Ghost);
+		}
+	}
+
+	return BusyGhosts;
+}
 function int AvailableGhosts()
 {
-	return (MaxAdjacentGhostStaff - Ghosts.Length);
+	return GetAvailableGhosts().Length;
 }
 function bool HasAvailableGhosts()
 {
-	return (Ghosts.Length < MaxAdjacentGhostStaff);
+	return (AvailableGhosts() < MaxGhosts());
+}
+function int MaxGhosts()
+{
+	return GetMyTemplate().GetContributionFromSkillFn(GetAssignedStaff());
+}
+function int StaffedGhosts()
+{
+	return GetStaffedGhosts().Length;
+}
+function bool HasStaffedGhosts()
+{
+	return (GetStaffedGhosts().Length > 0);
+}
+// Is the Staffed Unit a Ghost?
+function bool IsGhost()
+{
+	return (class'CHHelpers'.default.GhostTemplateNames.Find(GetAssignedStaff().GetMyTemplateName()) != INDEX_NONE);
 }
 // End Issue #706
 
